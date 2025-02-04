@@ -3,6 +3,9 @@ package ru.bashcony
 import org.apache.commons.math3.linear.*
 import org.apache.commons.math3.optim.linear.*
 import org.apache.commons.math3.optim.nonlinear.scalar.GoalType
+import java.text.DecimalFormat
+import java.text.DecimalFormatSymbols
+import java.util.Locale
 
 fun main() {
     // Задаем платежную матрицу
@@ -41,7 +44,8 @@ fun solveMixedStrategies(matrix: Array<IntArray>) {
     println("Перевод в исходную задачу ЛП...")
 
     // Преобразуем матрицу в объект Apache Commons Math для удобства работы с линейной алгеброй
-    val coefficients = Array2DRowRealMatrix(matrix.map { row -> row.map { it.toDouble() }.toDoubleArray() }.toTypedArray(), false)
+    val coefficients =
+        Array2DRowRealMatrix(matrix.map { row -> row.map { it.toDouble() }.toDoubleArray() }.toTypedArray(), false)
     val solver = SimplexSolver()
 
     // Задаем коэффициенты целевой функции (максимизация минимального выигрыша)
@@ -60,7 +64,12 @@ fun solveMixedStrategies(matrix: Array<IntArray>) {
     constraints.add(LinearConstraint(sumCoefficients, Relationship.EQ, 1.0))
 
     // Решаем задачу линейного программирования для поиска смешанной стратегии
-    val solution = solver.optimize(objectiveFunction, LinearConstraintSet(constraints), GoalType.MAXIMIZE, NonNegativeConstraint(true))
+    val solution = solver.optimize(
+        objectiveFunction,
+        LinearConstraintSet(constraints),
+        GoalType.MAXIMIZE,
+        NonNegativeConstraint(true)
+    )
 
     // Извлекаем вероятности выбора стратегий игроком A
     val probabilities = solution.point.take(numRows)
@@ -87,16 +96,25 @@ fun solveMixedStrategies(matrix: Array<IntArray>) {
     val bSumCoefficients = DoubleArray(numCols + 1) { if (it < numCols) 1.0 else 0.0 }
     bConstraints.add(LinearConstraint(bSumCoefficients, Relationship.EQ, 1.0))
 
-    val bSolution = bSolver.optimize(bObjectiveFunction, LinearConstraintSet(bConstraints), GoalType.MAXIMIZE, NonNegativeConstraint(true))
+    val bSolution = bSolver.optimize(
+        bObjectiveFunction,
+        LinearConstraintSet(bConstraints),
+        GoalType.MAXIMIZE,
+        NonNegativeConstraint(true)
+    )
     val bProbabilities = bSolution.point.take(numCols)
     val bGameValue = 1.0 / bSolution.point.last()
-    println("Оптимальные вероятности для игрока B: ${bProbabilities.joinToString(", ")}")
+    println("Оптимальные вероятности для игрока B: ${bProbabilities.str()}")
 
     println("Отчет о решении игры:")
     println("Платежная матрица:")
     matrix.forEach { println(it.joinToString("\t")) }
-    println("Средний выигрыш (цена игры) для игрока A: $gameValue")
-    println("Оптимальная стратегия игрока A: ${probabilities.joinToString(", ")}")
-    println("Средний выигрыш (цена игры) для игрока B: $bGameValue")
-    println("Оптимальная стратегия игрока B: ${bProbabilities.joinToString(", ")}")
+    println("Средний выигрыш (цена игры) для игрока A: ${gameValue.str()}")
+    println("Оптимальная стратегия игрока A: ${probabilities.str()}")
+    println("Средний выигрыш (цена игры) для игрока B: ${bGameValue.str()}")
+    println("Оптимальная стратегия игрока B: ${bProbabilities.str()}")
 }
+
+fun List<Double>.str() = joinToString(separator = ", ", transform = { it.str() })
+
+fun Double.str(): String = DecimalFormat("#.##", DecimalFormatSymbols(Locale.US)).format(this)
