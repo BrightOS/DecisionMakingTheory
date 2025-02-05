@@ -1,11 +1,16 @@
-package ru.bashcony
+import de.vandermeer.asciitable.AsciiTable
+import kotlin.math.*
 
 // Класс для хранения данных о задаче
 data class ProblemData(
-    val strategies: List<Int>, // Возможные стратегии (например, количество телевизоров или экскурсоводов)
-    val states: List<Int>, // Возможные состояния природы (например, спрос на телевизоры или количество посетителей)
-    val payoffs: List<List<Double>>, // Матрица выигрышей/затрат
-    val probabilities: List<Double>? = null // Вероятности состояний природы (опционально)
+    // Возможные стратегии (например, количество телевизоров или экскурсоводов)
+    val strategies: List<Int>,
+    // Возможные состояния природы (например, спрос на телевизоры или количество посетителей)
+    val states: List<Int>,
+    // Вероятности состояний природы (опционально)
+    val probabilities: List<Double>? = null,
+    // Матрица выигрышей/затрат (опционально)
+    val payoffs: List<List<Double>>? = null,
 )
 
 // Функция для расчета критерия Лапласа
@@ -16,6 +21,7 @@ fun laplaceCriterion(payoffs: List<List<Double>>): Pair<Int, Double> {
 }
 
 // Функция для расчета критерия Вальда
+// Природа даёт нам максимальные потери
 fun waldCriterion(payoffs: List<List<Double>>): Pair<Int, Double> {
     val minValues = payoffs.map { row -> row.minOrNull()!! }
     val maxIndex = minValues.indexOf(minValues.maxOrNull()!!)
@@ -23,6 +29,7 @@ fun waldCriterion(payoffs: List<List<Double>>): Pair<Int, Double> {
 }
 
 // Функция для расчета критерия Сэвиджа
+// Минимизация матрицы рисков
 fun savageCriterion(payoffs: List<List<Double>>): Pair<Int, Double> {
     val regretMatrix = mutableListOf<List<Double>>()
     for (row in payoffs) {
@@ -37,6 +44,7 @@ fun savageCriterion(payoffs: List<List<Double>>): Pair<Int, Double> {
 }
 
 // Функция для расчета критерия Гурвица
+// Использует оба подхода с использованием коэффициента доверия
 fun hurwiczCriterion(payoffs: List<List<Double>>, alpha: Double): Pair<Int, Double> {
     val hurwiczValues = payoffs.map { row ->
         alpha * row.maxOrNull()!! + (1 - alpha) * row.minOrNull()!!
@@ -45,31 +53,68 @@ fun hurwiczCriterion(payoffs: List<List<Double>>, alpha: Double): Pair<Int, Doub
     return Pair(maxIndex, hurwiczValues[maxIndex])
 }
 
+// Функция для расчета матрицы выигрышей для задачи 1 (производство телевизоров)
+fun calculatePayoffsTask1(strategies: List<Int>, states: List<Int>, price: Double, cost: Double): List<List<Double>> {
+    return strategies.map { A ->
+        states.map { S ->
+            val sales = min(A, S) // Фактический объем продаж
+            val surplus = max(0, A - S) // Излишек продукции
+            sales * (price - cost) - surplus * cost
+        }
+    }
+}
+
+// Функция для расчета матрицы выигрышей для задачи 2 (набор экскурсоводов)
+fun calculatePayoffsTask2(
+    strategies: List<Int>,
+    states: List<Int>,
+    exhibitionCost: Double,
+    guideSalary: Double,
+    ticketPrice: Double
+): List<List<Double>> {
+    return strategies.map { E ->
+        states.map { S ->
+            val maxVisitors = E * 100 // Максимальное количество обслуженных посетителей
+            val servedVisitors = min(maxVisitors, S) // Фактическое количество обслуженных посетителей
+            servedVisitors * ticketPrice - (exhibitionCost + E * guideSalary)
+        }
+    }
+}
+
 // Главная функция для решения задачи
 fun solveProblem(problem: ProblemData, alpha: Double = 0.5) {
+    val payoffs = problem.payoffs ?: error("Матрица выигрышей не задана")
     println("Матрица выигрышей/затрат:")
-    problem.payoffs.forEach { println(it) }
+    AsciiTable().apply {
+        addRule()
+        problem.payoffs.forEach {
+            addRow(*it.toTypedArray())
+            addRule()
+        }
+    }.render().let {
+        println(it)
+    }
 
     // Критерий Лапласа
-    val (laplaceIndex, laplaceValue) = laplaceCriterion(problem.payoffs)
+    val (laplaceIndex, laplaceValue) = laplaceCriterion(payoffs)
     println("\nКритерий Лапласа:")
     println("Оптимальная стратегия: ${problem.strategies[laplaceIndex]}")
     println("Значение критерия: $laplaceValue")
 
     // Критерий Вальда
-    val (waldIndex, waldValue) = waldCriterion(problem.payoffs)
+    val (waldIndex, waldValue) = waldCriterion(payoffs)
     println("\nКритерий Вальда:")
     println("Оптимальная стратегия: ${problem.strategies[waldIndex]}")
     println("Значение критерия: $waldValue")
 
     // Критерий Сэвиджа
-    val (savageIndex, savageValue) = savageCriterion(problem.payoffs)
+    val (savageIndex, savageValue) = savageCriterion(payoffs)
     println("\nКритерий Сэвиджа:")
     println("Оптимальная стратегия: ${problem.strategies[savageIndex]}")
     println("Значение критерия: $savageValue")
 
     // Критерий Гурвица
-    val (hurwiczIndex, hurwiczValue) = hurwiczCriterion(problem.payoffs, alpha)
+    val (hurwiczIndex, hurwiczValue) = hurwiczCriterion(payoffs, alpha)
     println("\nКритерий Гурвица (alpha = $alpha):")
     println("Оптимальная стратегия: ${problem.strategies[hurwiczIndex]}")
     println("Значение критерия: $hurwiczValue")
@@ -80,26 +125,25 @@ fun main() {
     // Данные для задачи 1 (вариант 1)
     val strategies1 = listOf(100, 200, 300, 400) // Возможные стратегии (количество телевизоров)
     val states1 = listOf(100, 200, 300, 400) // Возможные состояния природы (спрос)
-    val payoffs1 = listOf(
-        listOf(5000.0, 0.0, -5000.0, -10000.0), // Выигрыши для стратегии 100
-        listOf(0.0, 10000.0, 5000.0, 0.0),      // Выигрыши для стратегии 200
-        listOf(-5000.0, 5000.0, 15000.0, 10000.0), // Выигрыши для стратегии 300
-        listOf(-10000.0, 0.0, 10000.0, 20000.0)   // Выигрыши для стратегии 400
-    )
-    val problem1 = ProblemData(strategies1, states1, payoffs1)
+    val price1 = 100.0 // Отпускная цена одного телевизора
+    val cost1 = 50.0 // Полные затраты на производство одного телевизора
+
+    // Расчет матрицы выигрышей
+    val payoffs1 = calculatePayoffsTask1(strategies1, states1, price1, cost1)
+    val problem1 = ProblemData(strategies1, states1, payoffs = payoffs1)
     println("Решение задачи 1 (производство телевизоров):")
     solveProblem(problem1, alpha = 0.5)
 
     // Данные для задачи 2 (набор экскурсоводов)
     val strategies2 = listOf(1, 2, 3, 4) // Возможные стратегии (количество экскурсоводов)
     val states2 = listOf(50, 100, 150, 200, 250, 300) // Возможные состояния природы (количество посетителей)
-    val payoffs2 = listOf(
-        listOf(20.0, 20.0, 20.0, 20.0, 20.0, 20.0), // Доходы для 1 экскурсовода
-        listOf(40.0, 40.0, 40.0, 40.0, 40.0, 40.0), // Доходы для 2 экскурсоводов
-        listOf(60.0, 60.0, 60.0, 60.0, 60.0, 60.0), // Доходы для 3 экскурсоводов
-        listOf(80.0, 80.0, 80.0, 80.0, 80.0, 80.0)  // Доходы для 4 экскурсоводов
-    )
-    val problem2 = ProblemData(strategies2, states2, payoffs2)
+    val exhibitionCost2 = 80.0 // Затраты на содержание выставки в день
+    val guideSalary2 = 40.0 // Заработная плата одного экскурсовода в день
+    val ticketPrice2 = 2.0 // Цена билета
+
+    // Расчет матрицы выигрышей
+    val payoffs2 = calculatePayoffsTask2(strategies2, states2, exhibitionCost2, guideSalary2, ticketPrice2)
+    val problem2 = ProblemData(strategies2, states2, payoffs = payoffs2)
     println("\nРешение задачи 2 (набор экскурсоводов):")
     solveProblem(problem2, alpha = 0.5)
 }
